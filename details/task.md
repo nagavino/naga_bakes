@@ -1,0 +1,22 @@
+# Implementation Tasks — Naga Bakes Offline Billing App
+
+- [x] Initial setup & core foundation
+  - [x] Configure `pubspec.yaml` with pinned dependencies
+  - [x] Create design system (`AppColors`, `AppTextStyles`, `AppTheme`, `AppSpacing`, `AppRadius`, `AppShadows`, `AppSizes`)
+  - [x] Create responsive helpers (`Breakpoints`, `ResponsiveBuilder`, `context_responsive_ext.dart`)
+  - [x] Create core utilities (`Result<T>`, `CurrencyFormatter`, `DateFormatter`, `ImageHelper`)
+  - [x] Build reusable shared widgets (`AppButton`, `AppIconButton`, `AppCard`, `AppDialog`, `AppNumericKeypad`, `AppEmptyState`, `AppErrorView`, `AppLoadingIndicator`, `AppSnackbar`)
+- [x] Feature implementation
+  - [x] Products feature (Domain, Data, Presentation, Seed Data)
+  - [x] Billing feature (Domain, Data, Presentation, PDF Generation, Cart Management)
+  - [x] Reports feature (Domain, Data, Presentation, Date Range Filter, Visual Chart)
+  - [x] Settings feature (Domain, Data, Presentation, Logo/QR Uploader, Dark Mode)
+- [x] Navigation & Wiring
+  - [x] Setup `AppRouter` with AutoRoute
+  - [x] Connect Riverpod DI providers
+  - [x] Configure `main.dart` with Hive initializers & error recovery
+  - [x] Run `build_runner` for router and state generator
+- [x] Testing & Verification
+  - [x] Write domain use-case unit tests
+  - [x] Write shared widget tests
+  - [x] Verify complete test suite execution (`flutter test`)

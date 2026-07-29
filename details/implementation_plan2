@@ -1,0 +1,292 @@
+# Exhaustive Implementation Plan — Naga Bakes Offline Billing App
+
+This plan provides a 100% complete, feature-by-feature specification for building **Naga Bakes**, a fully offline, icon/photo-first billing application designed for a non-literate, non-tech-savvy bakery/tea shop owner.
+
+---
+
+## 1. Requirement & Feature Matrix
+
+| Feature Category | Master Prompt Requirement | Implementation Strategy |
+| :--- | :--- | :--- |
+| **User Experience** | Icon & photo-first UI, large touch targets (≥64dp), zero typing except product name | Custom touch keypad, image picker, +/- steppers, high contrast colors |
+| **Offline & Reliability** | Zero internet, zero login, zero backend, silent crash auto-recovery | Hive local database + path_provider file storage with try-catch auto-recovery wrappers |
+| **State & Router** | Riverpod (`riverpod_annotation`, `riverpod_generator`), AutoRoute (`auto_route_generator`) | Clean Architecture state providers & generated type-safe routes |
+| **Design System** | Strict zero-hardcoding policy (`AppColors`, `AppSpacing`, `AppTextStyles`, `AppSizes`, `AppRadius`, `AppShadows`, `AppStrings`, `AppAssets`) | Centralized design system with Runtime Light & Dark mode support |
+| **Responsive Grid** | Scalable layout across phones (360x800) and tablets (800x1280, 1280x800) | `Breakpoints` + `ResponsiveBuilder` (2 columns phone, 4 columns tablet) |
+| **PDF & Sharing** | Offline PDF invoice generation, printing & sharing | `pdf`, `printing`, `share_plus` packages |
+| **Testing** | Pure Dart domain unit tests + reusable widget tests | `flutter_test`, `mocktail` |
+
+---
+
+## 2. Directory & Component Architecture
+
+```
+lib/
+├── core/
+│   ├── constants/
+│   │   ├── app_assets.dart           # Centralized asset paths & placeholder SVG/Icon definitions
+│   │   ├── app_durations.dart        # Micro-animation & feedback duration tokens
+│   │   └── app_strings.dart          # App string constants (ready for future Tamil/regional localization)
+│   ├── error/
+│   │   ├── app_exception.dart        # Custom exceptions (StorageException, ImageException, PdfException)
+│   │   └── failure.dart              # Failure objects (StorageFailure, ImageFailure, PdfFailure)
+│   ├── responsive/
+│   │   ├── breakpoints.dart          # Phone (<600dp) vs Tablet (≥600dp) dimensions
+│   │   ├── context_responsive_ext.dart # Responsive context extensions (isTablet, isPhone, gridColumns)
+│   │   └── responsive_builder.dart   # Adaptive LayoutBuilder widget wrapper
+│   ├── router/
+│   │   ├── app_router.dart           # AutoRoute configuration & route table
+│   │   └── app_router.gr.dart        # Generated auto_route file
+│   ├── theme/
+│   │   ├── app_colors.dart           # Light/Dark semantic tokens (primary, success, danger, etc.)
+│   │   ├── app_radius.dart           # Standardized corner radiuses (sm: 8, md: 16, lg: 24, pill: 999)
+│   │   ├── app_shadows.dart          # Standard elevation shadows (soft dark & light variations)
+│   │   ├── app_sizes.dart            # Standard sizes (touch target 64dp, icons, avatars, grid height)
+│   │   ├── app_spacing.dart          # Fixed spacing scale (xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48)
+│   │   ├── app_text_styles.dart      # Fixed type scale (display, headline, title, body, label, caption)
+│   │   └── app_theme.dart            # ThemeData definition & Riverpod themeModeProvider
+│   └── utils/
+│       ├── currency_formatter.dart   # Rupee formatting utility (₹XX.XX)
+│       ├── date_formatter.dart       # ISO-8601 to display date/time utility
+│       ├── image_helper.dart         # Local image directory saver & loader
+│       └── result.dart               # Result<T, Failure> functional error handling wrapper
+│
+├── shared_widgets/
+│   ├── app_button.dart               # High-contrast action button (min 64dp height)
+│   ├── app_card.dart                 # Elevation container card with radius token
+│   ├── app_dialog.dart               # Iconic confirmation dialog (Yes/No with check/cross icons)
+│   ├── app_empty_state.dart          # Graphic empty state placeholder
+│   ├── app_error_view.dart           # Friendly icon-based error view (no technical stack trace)
+│   ├── app_icon_button.dart          # Big touch-target icon button (≥64x64dp)
+│   ├── app_loading_indicator.dart    # Custom loader
+│   ├── app_numeric_keypad.dart       # Custom large touch keypad for price input (0-9, clear, backspace)
+│   └── app_snackbar.dart             # Toast/Snackbar helper for visual feedback
+│
+├── features/
+│   ├── products/
+│   │   ├── domain/
+│   │   │   ├── entities/product_entity.dart
+│   │   │   ├── repositories/product_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── add_product.dart
+│   │   │       ├── delete_product.dart
+│   │   │       ├── edit_product.dart
+│   │   │       ├── get_products.dart
+│   │   │       └── seed_initial_products.dart
+│   │   ├── data/
+│   │   │   ├── datasources/hive_product_data_source.dart
+│   │   │   ├── models/product_model.dart
+│   │   │   └── repositories/product_repository_impl.dart
+│   │   └── presentation/
+│   │       ├── providers/
+│   │       │   ├── product_form_provider.dart
+│   │       │   └── product_list_provider.dart
+│   │       ├── screens/
+│   │       │   ├── add_edit_item_screen.dart
+│   │       │   └── manage_items_screen.dart
+│   │       └── widgets/
+│   │           ├── delete_confirm_dialog.dart
+│   │           ├── price_keypad_display.dart
+│   │           ├── product_card.dart
+│   │           └── product_photo_picker.dart
+│   │
+│   ├── billing/
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   ├── cart_item_entity.dart
+│   │   │   │   └── sale_entity.dart
+│   │   │   ├── repositories/sale_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── add_to_cart.dart
+│   │   │       ├── checkout_sale.dart
+│   │   │       ├── clear_cart.dart
+│   │   │       ├── generate_invoice_pdf.dart
+│   │   │       └── remove_from_cart.dart
+│   │   ├── data/
+│   │   │   ├── datasources/hive_sale_data_source.dart
+│   │   │   ├── models/sale_model.dart
+│   │   │   ├── repositories/sale_repository_impl.dart
+│   │   │   └── services/pdf_invoice_service.dart
+│   │   └── presentation/
+│   │       ├── providers/
+│   │       │   ├── billing_total_provider.dart
+│   │       │   ├── cart_provider.dart
+│   │       │   └── checkout_provider.dart
+│   │       ├── screens/
+│   │       │   ├── bill_now_screen.dart
+│   │       │   ├── invoice_screen.dart
+│   │       │   └── payment_screen.dart
+│   │       └── widgets/
+│   │           ├── cart_total_bar.dart
+│   │           ├── invoice_preview_card.dart
+│   │           ├── product_stepper_card.dart
+│   │           └── qr_payment_panel.dart
+│   │
+│   ├── reports/
+│   │   ├── domain/
+│   │   │   ├── entities/report_entity.dart
+│   │   │   ├── repositories/reports_repository.dart
+│   │   │   └── usecases/get_sales_reports.dart
+│   │   ├── data/
+│   │   │   └── repositories/reports_repository_impl.dart
+│   │   └── presentation/
+│   │       ├── providers/reports_provider.dart
+│   │       ├── screens/reports_screen.dart
+│   │       └── widgets/
+│   │           ├── product_sales_tile.dart
+│   │           ├── report_range_tabs.dart
+│   │           ├── report_summary_card.dart
+│   │           └── sales_visual_chart.dart
+│   │
+│   └── settings/
+│       ├── domain/
+│       │   ├── entities/settings_entity.dart
+│       │   ├── repositories/settings_repository.dart
+│       │   └── usecases/
+│       │       ├── get_settings.dart
+│       │       └── update_settings.dart
+│       ├── data/
+│       │   ├── datasources/hive_settings_data_source.dart
+│       │   ├── models/settings_model.dart
+│       │   └── repositories/settings_repository_impl.dart
+│       └── presentation/
+│           ├── providers/settings_provider.dart
+│           └── screens/
+│               ├── home_screen.dart
+│               └── settings_screen.dart
+│
+└── main.dart                          # ProviderScope + Hive Init + AutoRouter setup
+```
+
+---
+
+## 3. Detailed Data Storage Schema (Hive Boxes)
+
+### `products` Box
+- Key: String `id` (UUID v4)
+- Fields:
+  - `id`: String
+  - `name`: String
+  - `imagePath`: String (Local filesystem path in app documents)
+  - `price`: double
+  - `isActive`: bool
+  - `createdAt`: String (ISO8601)
+
+### `sales` Box
+- Key: String `id` (UUID v4)
+- Fields:
+  - `id`: String
+  - `invoiceNumber`: String (e.g. "NB0001")
+  - `timestamp`: String (ISO8601)
+  - `items`: List of Maps `[{"productId": String, "name": String, "qty": int, "priceEach": double, "subtotal": double}]`
+  - `totalAmount`: double
+
+### `settings` Box
+- Key: Single key `"shop_settings"`
+- Fields:
+  - `shopName`: String (default: "Naga Bakes")
+  - `shopLogoPath`: String
+  - `qrImagePath`: String
+  - `invoiceCounter`: int (starts at 1)
+  - `themeMode`: String ('light', 'dark', 'system')
+
+---
+
+## 4. Screen-by-Screen Specification
+
+### 1. Home Screen (`/home`)
+- Header with shop logo/name (from `settings`), Theme toggle icon (sun/moon), and Settings gear icon button.
+- 3 Large Action Cards (Grid/Column with min height 140dp, high contrast icons):
+  - **Bill Now**: Cash register / receipt icon (Green border/accent)
+  - **Manage Items**: Cupcake / Edit photo icon (Blue border/accent)
+  - **Reports**: Bar chart / Analytics icon (Orange border/accent)
+
+### 2. Bill Now Screen (`/bill-now`)
+- Top Bar: Search / category filter (optional) & Back icon.
+- Responsive Product Grid: 2 columns on Phone, 4 columns on Tablet.
+  - Card: Large product photo (or generic fallback icon if photo unassigned), Product name, Price in bold currency format (₹15.00).
+  - Integrated Quantity Stepper on Card: Red circle `-`, bold quantity text in center, Green circle `+`.
+- Sticky Bottom Action Bar:
+  - Running Total: Large bold text `₹ 150`
+  - **Clear Cart** Button: Big Red trash icon
+  - **Pay Now** Button: Big Green arrow / payment icon -> pushes to `/payment` with current cart state.
+
+### 3. Payment Screen (`/payment`)
+- Displays "Amount to Pay: ₹XX" in prominent headline font.
+- Displays uploaded shop QR code image centered (large preview).
+- Fallback: If no QR image uploaded yet, displays a friendly prompt with camera/gallery icon to jump to settings or proceed.
+- Big Green Button: **Payment Received** (Checkmark icon).
+- Payment Received Action:
+  1. Creates Sale record in `sales` Hive box.
+  2. Increments `invoiceCounter` in `settings` box.
+  3. Generates PDF byte data via `pdf_invoice_service`.
+  4. Navigates to `/invoice` with generated PDF data and sale details.
+
+### 4. Invoice Screen (`/invoice`)
+- Interactive Invoice Card Preview: Shop branding, invoice number (`NB0001`), timestamp, list of items with sub-totals, grand total.
+- Action Buttons (≥64dp height):
+  - **Save/Download PDF** (Download icon)
+  - **Share PDF** (Share icon via `share_plus`)
+  - **Return Home** (Home icon)
+
+### 5. Manage Items Screen (`/manage-items`) & Add/Edit Screen (`/add-edit-item`)
+- **Manage Items**: Grid of all items with overlay Edit (pencil) and Delete (trash) buttons.
+- Floating Add Action Button (+ icon).
+- **Add/Edit Item Flow**:
+  - Step 1: Tap Camera icon -> Choose camera/gallery using `image_picker`, saves copy locally via `path_provider`.
+  - Step 2: Product Name (only typed field).
+  - Step 3: Custom numeric keypad (`AppNumericKeypad`) for entering price without triggering standard OS virtual keyboard.
+  - Step 4: Big Green **Save** Button.
+- **Delete Confirm Modal**: Icon-first dialog (Are you sure? Big Green Check vs Big Red Cross).
+- Past sales remain unaffected by product deletion (snapshots preserved in sales record).
+
+### 6. Reports Screen (`/reports`)
+- Range Selection Tabs: **Today** (Sun icon), **This Month** (Calendar icon), **All Time** (Infinity icon).
+- Metric Summary Cards:
+  - Total Revenue (₹)
+  - Total Bills Count
+  - Total Items Sold Count
+- Product Sales Breakdown: List with photo, product name, total qty sold, and revenue.
+- Visual Bar Chart comparing top selling items.
+
+### 7. Settings / Setup Screen (`/settings`)
+- Shop Name input field (default "Naga Bakes").
+- Upload Shop Logo (Camera/Gallery picker).
+- Upload Payment QR Code image (Camera/Gallery picker).
+- Theme mode switch (Light vs Dark mode).
+
+---
+
+## 5. Seed Data Execution Plan
+
+On initial launch, if `products` box is empty:
+- Seed 13 default bakery & tea shop items:
+  1. Normal Tea
+  2. Black Tea
+  3. Filter Tea
+  4. Black Coffee
+  5. Filter Coffee
+  6. Green Tea
+  7. Lemon Tea
+  8. Bajji
+  9. Vada
+  10. Egg Puffs
+  11. Veg Puffs
+  12. Muruku
+  13. Mixture
+- Default prices set to `₹0.0` as placeholders so owner can customize via Manage Items.
+
+---
+
+## 6. Testing Strategy
+
+### Unit Tests (`test/features/...`)
+- `add_product_test.dart`: verify product creation & persistence mapping.
+- `delete_product_test.dart`: verify soft/hard delete & sales independence.
+- `checkout_sale_test.dart`: verify invoice counter increment & cart calculations.
+- `get_sales_reports_test.dart`: verify date filtering (Today, This Month, All Time).
+
+### Widget Tests (`test/shared_widgets/...`)
+- `app_button_test.dart`: verify min touch target size (≥64dp) and tap callback.
+- `product_stepper_card_test.dart`: verify increment & decrement button events.
+- `app_numeric_keypad_test.dart`: verify key taps append/clear digits correctly.
